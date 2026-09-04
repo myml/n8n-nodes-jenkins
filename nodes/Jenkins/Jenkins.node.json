@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-jenkins.jenkins",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Development"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/myml/n8n-nodes-jenkins#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/myml/n8n-nodes-jenkins"
+			}
+		]
+	}
+}
