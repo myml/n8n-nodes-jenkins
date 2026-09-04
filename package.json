@@ -1,9 +1,12 @@
 {
-	"name": "n8n-nodes-jenkins",
+	"name": "@myml/n8n-nodes-jenkins",
 	"version": "0.1.1",
 	"description": "Jenkins community node for n8n",
 	"license": "MIT",
 	"homepage": "",
+	"publishConfig": {
+		"access": "public"
+	},
 	"keywords": [
 		"n8n-community-node-package",
 		"jenkins",
