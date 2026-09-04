@@ -3,8 +3,14 @@
 This is an n8n community node. It lets you use Jenkins in your n8n workflows.
 
 The node was extracted from the n8n built-in Jenkins node. It supports the same
-operations and credentials, plus a **Get Job** operation that fetches a single
-job.
+operations and credentials, plus these additions:
+
+- **Get Job**: fetch a single job (the built-in node only lists jobs)
+- **Build > Get Log**: fetch the console log of a build
+- **Node (agent) resources**: get, list, take offline, bring online
+- **Queue resources**: get a single queue item or list the queue
+- **Trigger** / **Trigger with Parameters** return the **queue item ID** of the
+  triggered build, so you can poll the queue to find the build number
 
 [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
@@ -22,15 +28,17 @@ In the n8n community nodes search, look for `@myml/n8n-nodes-jenkins` to install
 
 ## Operations
 
-The node exposes three resources:
+The node exposes five resources:
 
 - **Job**
   - Copy a job
   - Create a job
   - **Get a job** (added in this package)
-  - Trigger a job
-  - Trigger a job with parameters
+  - Trigger a job — returns the queue item ID of the build
+  - Trigger a job with parameters — returns the queue item ID of the build
 - **Build**
+  - Get a build
+  - **Get a build log** (added in this package)
   - Get many builds
 - **Instance**
   - Cancel quiet down
@@ -39,6 +47,20 @@ The node exposes three resources:
   - Safely restart
   - Safely shutdown
   - Shutdown
+- **Node (agent)**
+  - Get a node
+  - Get many nodes
+  - Set a node offline
+  - Set a node online
+- **Queue**
+  - Get a queue item
+  - Get many queue items
+
+When a job is triggered, Jenkins does not return the build number directly.
+The Trigger operations return the **queue item ID** instead. Poll the **Queue >
+Get** operation until its `executable` field is set — that field contains the
+`number` and `url` of the build. The `executable` field is `null` while the
+build is still waiting in the queue.
 
 ## Credentials
 
