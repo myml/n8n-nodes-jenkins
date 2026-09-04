@@ -11,6 +11,9 @@ operations and credentials, plus these additions:
 - **Queue resources**: get a single queue item or list the queue
 - **Trigger** / **Trigger with Parameters** return the **queue item ID** of the
   triggered build, so you can poll the queue to find the build number
+- **Custom API Call**: call any Jenkins API endpoint using the Jenkins
+  credential, with a custom HTTP method, query parameters, and optional JSON
+  body
 
 [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
@@ -55,6 +58,11 @@ The node exposes five resources:
 - **Queue**
   - Get a queue item
   - Get many queue items
+- **Custom API Call**
+  - Call an arbitrary Jenkins API endpoint with the Jenkins credential.
+    Choose an HTTP method, enter the path (for example `/job/my-job/api/json`),
+    optionally add query parameters and a JSON body, and pick whether to parse
+    the response as JSON or return it as raw text.
 
 When a job is triggered, Jenkins does not return the build number directly.
 The Trigger operations return the **queue item ID** instead. Poll the **Queue >

@@ -3,6 +3,8 @@ import type {
 	ICredentialsDecrypted,
 	ICredentialTestFunctions,
 	IDataObject,
+	IHttpRequestMethods,
+	IHttpRequestOptions,
 	ILoadOptionsFunctions,
 	INodeCredentialTestResult,
 	INodeExecutionData,
@@ -54,6 +56,10 @@ export class Jenkins implements INodeType {
 					{
 						name: 'Build',
 						value: 'build',
+					},
+					{
+						name: 'Custom API Call',
+						value: 'customApi',
 					},
 					{
 						name: 'Instance',
@@ -553,6 +559,133 @@ export class Jenkins implements INodeType {
 				description:
 					'ID of the queue item. The Trigger operations return the queue item ID of the build they created.',
 			},
+
+			// --------------------------------------------------------------------------------------------------------
+			//         Custom API operations
+			// --------------------------------------------------------------------------------------------------------
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['customApi'],
+					},
+				},
+				options: [
+					{
+						name: 'Call',
+						value: 'call',
+						description: 'Make an arbitrary request to the Jenkins API',
+						action: 'Make a custom API call',
+					},
+				],
+				default: 'call',
+				description: 'Possible operations',
+				noDataExpression: true,
+			},
+			{
+				displayName: 'HTTP Method',
+				name: 'method',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['customApi'],
+					},
+				},
+				options: [
+					{ name: 'DELETE', value: 'DELETE' },
+					{ name: 'GET', value: 'GET' },
+					{ name: 'PATCH', value: 'PATCH' },
+					{ name: 'POST', value: 'POST' },
+					{ name: 'PUT', value: 'PUT' },
+				],
+				default: 'GET',
+				description: 'HTTP method to use for the request',
+				noDataExpression: true,
+			},
+			{
+				displayName: 'Path',
+				name: 'path',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['customApi'],
+					},
+				},
+				required: true,
+				default: '',
+				description:
+					'Path of the API endpoint, relative to the Jenkins instance URL. Must start with a slash. For example: `/systemInfo` returns system information as JSON. Use an <a href="https://docs.n8n.io/code/expressions/">expression</a> to build it dynamically.',
+			},
+			{
+				displayName: 'Query Parameters',
+				name: 'queryParameters',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				displayOptions: {
+					show: {
+						resource: ['customApi'],
+					},
+				},
+				default: {},
+				description: 'Query parameters to append to the request URL',
+				options: [
+					{
+						name: 'values',
+						displayName: 'Values',
+						values: [
+							{
+								displayName: 'Name',
+								name: 'name',
+								type: 'string',
+								default: '',
+								description: 'Name of the query parameter',
+							},
+							{
+								displayName: 'Value',
+								name: 'value',
+								type: 'string',
+								default: '',
+								description: 'Value of the query parameter',
+							},
+						],
+					},
+				],
+			},
+			{
+				displayName: 'Body',
+				name: 'body',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['customApi'],
+					},
+				},
+				default: '',
+				description:
+					'Body to send with the request, as a JSON string. For example: {"name": "value"}. Leave empty to send no body.',
+			},
+			{
+				displayName: 'Response Format',
+				name: 'responseFormat',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['customApi'],
+					},
+				},
+				options: [
+					{ name: 'JSON', value: 'json', description: 'Parse the response as JSON' },
+					{ name: 'Text', value: 'text', description: 'Return the response as raw text' },
+				],
+				default: 'json',
+				description:
+					'Format of the response. Use text for endpoints that do not return JSON, such as console output.',
+				noDataExpression: true,
+			},
 		],
 	};
 
@@ -907,6 +1040,46 @@ export class Jenkins implements INodeType {
 						const endpoint = `/queue/item/${queueId}/api/json`;
 						responseData = await jenkinsApiRequest.call(this, 'GET', endpoint);
 					}
+				}
+
+				if (resource === 'customApi') {
+					const method = this.getNodeParameter('method', i) as IHttpRequestMethods;
+					const path = this.getNodeParameter('path', i) as string;
+					const queryParameters = this.getNodeParameter(
+						'queryParameters.values',
+						i,
+						[],
+					) as Array<{ name: string; value: string }>;
+					const body = this.getNodeParameter('body', i, '') as string;
+					const responseFormat = this.getNodeParameter('responseFormat', i) as string;
+
+					const qs: IDataObject = {};
+					for (const param of queryParameters) {
+						if (param.name) {
+							qs[param.name] = param.value;
+						}
+					}
+
+					let parsedBody: IHttpRequestOptions['body'] = '';
+					if (body) {
+						try {
+							parsedBody = JSON.parse(body) as IHttpRequestOptions['body'];
+						} catch (error) {
+							throw new NodeOperationError(this.getNode(), `Body must be valid JSON: ${(error as Error).message}`);
+						}
+					}
+
+					const option: Partial<IHttpRequestOptions> = {};
+					if (responseFormat === 'text') {
+						option.json = false;
+						option.encoding = 'text';
+					}
+
+					const response = await jenkinsApiRequest.call(this, method, path, qs, parsedBody, option);
+					responseData =
+						responseFormat === 'text'
+							? { text: response as unknown as string }
+							: (response as IDataObject);
 				}
 
 				if (Array.isArray(responseData)) {

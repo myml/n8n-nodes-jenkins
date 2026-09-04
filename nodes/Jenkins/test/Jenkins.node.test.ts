@@ -342,5 +342,115 @@ describe('Jenkins node', () => {
 			expect(jenkinsApiRequestSpy).toHaveBeenCalledWith('GET', '/queue/item/123/api/json');
 			expect(result).toEqual([[{ json: itemData }]]);
 		});
+
+		it('makes a custom API GET call with query parameters', async () => {
+			const apiData = { _class: 'hudson.model.View', name: 'all', jobs: [] };
+			executeFunctions.getNodeParameter.mockImplementation((param: string, index: number, fallback?: unknown) => {
+				const params: Record<string, unknown> = {
+					resource: 'customApi',
+					operation: 'call',
+					method: 'GET',
+					path: '/view/all/api/json',
+					// eslint-disable-next-line n8n-nodes-base/node-param-display-name-miscased -- fixture data, not a node parameter definition
+				queryParameters: { values: [{ name: 'depth', value: '1' }] },
+					body: '',
+					responseFormat: 'json',
+				};
+				if (param === 'queryParameters.values') {
+					return params.queryParameters.values as never;
+				}
+				return (params[param] ?? fallback) as never;
+			});
+			jenkinsApiRequestSpy.mockResolvedValue(apiData);
+
+			const result = await node.execute.call(executeFunctions);
+
+			expect(jenkinsApiRequestSpy).toHaveBeenCalledWith('GET', '/view/all/api/json', { depth: '1' }, '', {});
+			expect(result).toEqual([[{ json: apiData }]]);
+		});
+
+		it('makes a custom API POST call with a JSON body', async () => {
+			executeFunctions.getNodeParameter.mockImplementation((param: string, index: number, fallback?: unknown) => {
+				const params: Record<string, unknown> = {
+					resource: 'customApi',
+					operation: 'call',
+					method: 'POST',
+					path: '/createItem',
+					// eslint-disable-next-line n8n-nodes-base/node-param-display-name-miscased -- fixture data, not a node parameter definition
+				queryParameters: { values: [{ name: 'name', value: 'new-job' }] },
+					body: '{"xml":"<project/>"}',
+					responseFormat: 'json',
+				};
+				if (param === 'queryParameters.values') {
+					return params.queryParameters.values as never;
+				}
+				return (params[param] ?? fallback) as never;
+			});
+			jenkinsApiRequestSpy.mockResolvedValue({});
+
+			const result = await node.execute.call(executeFunctions);
+
+			expect(jenkinsApiRequestSpy).toHaveBeenCalledWith(
+				'POST',
+				'/createItem',
+				{ name: 'new-job' },
+				{ xml: '<project/>' },
+				{},
+			);
+			expect(result).toEqual([[{ json: {} }]]);
+		});
+
+		it('makes a custom API call and returns the raw text response', async () => {
+			executeFunctions.getNodeParameter.mockImplementation((param: string, index: number, fallback?: unknown) => {
+				const params: Record<string, unknown> = {
+					resource: 'customApi',
+					operation: 'call',
+					method: 'GET',
+					path: '/job/demo-job/1/consoleText',
+					queryParameters: { values: [] },
+					body: '',
+					responseFormat: 'text',
+				};
+				if (param === 'queryParameters.values') {
+					return params.queryParameters.values as never;
+				}
+				return (params[param] ?? fallback) as never;
+			});
+			jenkinsApiRequestSpy.mockResolvedValue('Started by user admin\nFinished: SUCCESS');
+
+			const result = await node.execute.call(executeFunctions);
+
+			expect(jenkinsApiRequestSpy).toHaveBeenCalledWith(
+				'GET',
+				'/job/demo-job/1/consoleText',
+				{},
+				'',
+				{ json: false, encoding: 'text' },
+			);
+			expect(result).toEqual([
+				[{ json: { text: 'Started by user admin\nFinished: SUCCESS' } }],
+			]);
+		});
+
+		it('rejects an invalid JSON body on a custom API call', async () => {
+			executeFunctions.getNodeParameter.mockImplementation((param: string, index: number, fallback?: unknown) => {
+				const params: Record<string, unknown> = {
+					resource: 'customApi',
+					operation: 'call',
+					method: 'POST',
+					path: '/createItem',
+					queryParameters: { values: [] },
+					body: '{not valid json',
+					responseFormat: 'json',
+				};
+				if (param === 'queryParameters.values') {
+					return params.queryParameters.values as never;
+				}
+				return (params[param] ?? fallback) as never;
+			});
+
+			await expect(node.execute.call(executeFunctions)).rejects.toThrow('Body must be valid JSON');
+			expect(jenkinsApiRequestSpy).not.toHaveBeenCalled();
+		});
 	});
 });
