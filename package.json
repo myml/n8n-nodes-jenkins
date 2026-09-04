@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-jenkins",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Jenkins community node for n8n",
 	"license": "MIT",
 	"homepage": "",
