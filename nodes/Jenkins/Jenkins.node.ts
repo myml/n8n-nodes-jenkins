@@ -110,13 +110,13 @@ export class Jenkins implements INodeType {
 					{
 						name: 'Trigger',
 						value: 'trigger',
-						description: 'Trigger a specific job. Returns the queue item ID, which you can poll to find the build number',
+						description: 'Trigger a specific job. Returns the queue item ID, which you can poll to find the build number.',
 						action: 'Trigger a job',
 					},
 					{
 						name: 'Trigger with Parameters',
 						value: 'triggerParams',
-						description: 'Trigger a specific job with parameters. Returns the queue item ID, which you can poll to find the build number',
+						description: 'Trigger a specific job with parameters. Returns the queue item ID, which you can poll to find the build number.',
 						action: 'Trigger a job with parameters',
 					},
 				],
