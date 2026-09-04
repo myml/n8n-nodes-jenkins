@@ -15,7 +15,7 @@ import type {
 } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
-import { jenkinsApiRequest, tolerateTrailingSlash } from './GenericFunctions';
+import { buildTriggerResponse, jenkinsApiRequest, jenkinsApiRequestFull, tolerateTrailingSlash } from './GenericFunctions';
 
 export type JenkinsApiCredentials = {
 	username: string;
@@ -25,7 +25,7 @@ export type JenkinsApiCredentials = {
 
 export class Jenkins implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Jenkins',
+		displayName: 'Jenkins (Community)',
 		name: 'jenkins',
 		icon: 'file:jenkins.svg',
 		group: ['output'],
@@ -33,7 +33,7 @@ export class Jenkins implements INodeType {
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Consume Jenkins API',
 		defaults: {
-			name: 'Jenkins',
+			name: 'Jenkins (Community)',
 		},
 		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
@@ -62,6 +62,14 @@ export class Jenkins implements INodeType {
 					{
 						name: 'Job',
 						value: 'job',
+					},
+					{
+						name: 'Node',
+						value: 'node',
+					},
+					{
+						name: 'Queue',
+						value: 'queue',
 					},
 				],
 				default: 'job',
@@ -102,13 +110,13 @@ export class Jenkins implements INodeType {
 					{
 						name: 'Trigger',
 						value: 'trigger',
-						description: 'Trigger a specific job',
+						description: 'Trigger a specific job. Returns the queue item ID, which you can poll to find the build number',
 						action: 'Trigger a job',
 					},
 					{
 						name: 'Trigger with Parameters',
 						value: 'triggerParams',
-						description: 'Trigger a specific job',
+						description: 'Trigger a specific job with parameters. Returns the queue item ID, which you can poll to find the build number',
 						action: 'Trigger a job with parameters',
 					},
 				],
@@ -337,6 +345,18 @@ export class Jenkins implements INodeType {
 				},
 				options: [
 					{
+						name: 'Get',
+						value: 'get',
+						description: 'Get a single build',
+						action: 'Get a build',
+					},
+					{
+						name: 'Get Log',
+						value: 'getLog',
+						description: 'Get the console log of a build',
+						action: 'Get a build log',
+					},
+					{
 						name: 'Get Many',
 						value: 'getAll',
 						description: 'List Builds',
@@ -356,13 +376,31 @@ export class Jenkins implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['build'],
-						operation: ['getAll'],
+						operation: ['get', 'getLog', 'getAll'],
 					},
 				},
 				required: true,
 				default: '',
 				description:
 					'Name of the job. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
+				displayName: 'Build ID',
+				name: 'buildId',
+				type: 'number',
+				typeOptions: {
+					minValue: 1,
+				},
+				displayOptions: {
+					show: {
+						resource: ['build'],
+						operation: ['get', 'getLog'],
+					},
+				},
+				required: true,
+				default: 1,
+				description:
+					'ID of the build. Use an <a href="https://docs.n8n.io/code/expressions/">expression</a> to reference it dynamically.',
 			},
 			{
 				displayName: 'Return All',
@@ -393,6 +431,127 @@ export class Jenkins implements INodeType {
 					},
 				},
 				description: 'Max number of results to return',
+			},
+
+			// --------------------------------------------------------------------------------------------------------
+			//         Node (agent) operations
+			// --------------------------------------------------------------------------------------------------------
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['node'],
+					},
+				},
+				options: [
+					{
+						name: 'Get',
+						value: 'get',
+						description: 'Get a single node (agent)',
+						action: 'Get a node',
+					},
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'List many nodes (agents)',
+						action: 'Get many nodes',
+					},
+					{
+						name: 'Set Offline',
+						value: 'setOffline',
+						description: 'Take a node (agent) offline',
+						action: 'Set a node offline',
+					},
+					{
+						name: 'Set Online',
+						value: 'setOnline',
+						description: 'Bring a node (agent) back online',
+						action: 'Set a node online',
+					},
+				],
+				default: 'getAll',
+				noDataExpression: true,
+			},
+			{
+				displayName: 'Node Name or ID',
+				name: 'nodeName',
+				type: 'options',
+				typeOptions: {
+					loadOptionsMethod: 'getNodes',
+				},
+				displayOptions: {
+					show: {
+						resource: ['node'],
+						operation: ['get', 'setOffline', 'setOnline'],
+					},
+				},
+				required: true,
+				default: '',
+				description:
+					'Name of the node (agent). Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
+				displayName: 'Reason',
+				name: 'reason',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['node'],
+						operation: ['setOffline'],
+					},
+				},
+				default: '',
+				description: 'Optional reason for taking the node offline',
+			},
+
+			// --------------------------------------------------------------------------------------------------------
+			//         Queue operations
+			// --------------------------------------------------------------------------------------------------------
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['queue'],
+					},
+				},
+				options: [
+					{
+						name: 'Get',
+						value: 'get',
+						description: 'Get a single queue item',
+						action: 'Get a queue item',
+					},
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'List many queue items',
+						action: 'Get many queue items',
+					},
+				],
+				default: 'getAll',
+				noDataExpression: true,
+			},
+			{
+				displayName: 'Queue Item ID',
+				name: 'queueId',
+				type: 'number',
+				typeOptions: {
+					minValue: 1,
+				},
+				displayOptions: {
+					show: {
+						resource: ['queue'],
+						operation: ['get'],
+					},
+				},
+				required: true,
+				default: 1,
+				description:
+					'ID of the queue item. The Trigger operations return the queue item ID of the build they created.',
 			},
 		],
 	};
@@ -506,6 +665,30 @@ export class Jenkins implements INodeType {
 
 				return returnData;
 			},
+			async getNodes(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const returnData: INodePropertyOptions[] = [];
+				const endpoint = '/computer/api/json?tree=computer[displayName]';
+				const { computer } = (await jenkinsApiRequest.call(this, 'GET', endpoint)) as {
+					computer: Array<{ displayName: string }>;
+				};
+				for (const node of computer) {
+					returnData.push({
+						name: node.displayName,
+						value: node.displayName,
+					});
+				}
+				returnData.sort((a, b) => {
+					if (a.name < b.name) {
+						return -1;
+					}
+					if (a.name > b.name) {
+						return 1;
+					}
+					return 0;
+				});
+
+				return returnData;
+			},
 		},
 	};
 
@@ -515,16 +698,14 @@ export class Jenkins implements INodeType {
 		const length = items.length;
 		let responseData;
 		const resource = this.getNodeParameter('resource', 0);
-		const operation = this.getNodeParameter('operation', 0);
-
-		for (let i = 0; i < length; i++) {
+		const operation = this.getNodeParameter('operation', 0);		for (let i = 0; i < length; i++) {
 			try {
 				if (resource === 'job') {
 					if (operation === 'trigger') {
 						const job = this.getNodeParameter('job', i) as string;
 						const endpoint = `/job/${job}/build`;
-						await jenkinsApiRequest.call(this, 'POST', endpoint);
-						responseData = { success: true };
+						const fullResponse = await jenkinsApiRequestFull.call(this, 'POST', endpoint);
+						responseData = buildTriggerResponse(fullResponse);
 					}
 					if (operation === 'triggerParams') {
 						const job = this.getNodeParameter('job', i) as string;
@@ -537,7 +718,7 @@ export class Jenkins implements INodeType {
 							}, {});
 						}
 						const endpoint = `/job/${job}/buildWithParameters`;
-						await jenkinsApiRequest.call(
+						const fullResponse = await jenkinsApiRequestFull.call(
 							this,
 							'POST',
 							endpoint,
@@ -549,7 +730,7 @@ export class Jenkins implements INodeType {
 								},
 							},
 						);
-						responseData = { success: true };
+						responseData = buildTriggerResponse(fullResponse);
 					}
 					if (operation === 'copy') {
 						const job = this.getNodeParameter('job', i) as string;
@@ -654,6 +835,22 @@ export class Jenkins implements INodeType {
 				}
 
 				if (resource === 'build') {
+					if (operation === 'get') {
+						const job = this.getNodeParameter('job', i) as string;
+						const buildId = this.getNodeParameter('buildId', i) as number;
+						const endpoint = `/job/${job}/${buildId}/api/json`;
+						responseData = await jenkinsApiRequest.call(this, 'GET', endpoint);
+					}
+					if (operation === 'getLog') {
+						const job = this.getNodeParameter('job', i) as string;
+						const buildId = this.getNodeParameter('buildId', i) as number;
+						const endpoint = `/job/${job}/${buildId}/consoleText`;
+						const log = (await jenkinsApiRequest.call(this, 'GET', endpoint, {}, '', {
+							json: false,
+							encoding: 'text',
+						})) as unknown as string;
+						responseData = { consoleText: log };
+					}
 					if (operation === 'getAll') {
 						const job = this.getNodeParameter('job', i) as string;
 						let endpoint = `/job/${job}/api/json?tree=builds[*]`;
@@ -666,6 +863,49 @@ export class Jenkins implements INodeType {
 
 						responseData = await jenkinsApiRequest.call(this, 'GET', endpoint);
 						responseData = responseData.builds;
+					}
+				}
+
+				if (resource === 'node') {
+					if (operation === 'getAll') {
+						const endpoint = '/computer/api/json?tree=computer[*]';
+						const response = await jenkinsApiRequest.call(this, 'GET', endpoint);
+						responseData = response.computer;
+					}
+					if (operation === 'get') {
+						const nodeName = this.getNodeParameter('nodeName', i) as string;
+						const endpoint = `/computer/${encodeURIComponent(nodeName)}/api/json`;
+						responseData = await jenkinsApiRequest.call(this, 'GET', endpoint);
+					}
+					if (operation === 'setOffline') {
+						const nodeName = this.getNodeParameter('nodeName', i) as string;
+						const reason = this.getNodeParameter('reason', i, '') as string;
+						const queryParams: IDataObject = {};
+						if (reason) {
+							queryParams.offlineMessage = reason;
+						}
+						const endpoint = `/computer/${encodeURIComponent(nodeName)}/offline`;
+						await jenkinsApiRequest.call(this, 'POST', endpoint, queryParams);
+						responseData = { success: true };
+					}
+					if (operation === 'setOnline') {
+						const nodeName = this.getNodeParameter('nodeName', i) as string;
+						const endpoint = `/computer/${encodeURIComponent(nodeName)}/online`;
+						await jenkinsApiRequest.call(this, 'POST', endpoint);
+						responseData = { success: true };
+					}
+				}
+
+				if (resource === 'queue') {
+					if (operation === 'getAll') {
+						const endpoint = '/queue/api/json?tree=items[*]';
+						const response = await jenkinsApiRequest.call(this, 'GET', endpoint);
+						responseData = response.items;
+					}
+					if (operation === 'get') {
+						const queueId = this.getNodeParameter('queueId', i) as number;
+						const endpoint = `/queue/item/${queueId}/api/json`;
+						responseData = await jenkinsApiRequest.call(this, 'GET', endpoint);
 					}
 				}
 

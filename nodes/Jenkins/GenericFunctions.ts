@@ -5,6 +5,7 @@ import type {
 	IHttpRequestMethods,
 	IHttpRequestOptions,
 	ILoadOptionsFunctions,
+	IN8nHttpFullResponse,
 	JsonObject,
 } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
@@ -43,4 +44,49 @@ export async function jenkinsApiRequest(
 	} catch (error) {
 		throw new NodeApiError(this.getNode(), error as JsonObject);
 	}
+}
+
+/** Perform a request and return the full response, including headers. Used to read the Location header of trigger responses, which points at the queue item of the created build. */
+export async function jenkinsApiRequestFull(
+	this: IExecuteFunctions,
+	method: IHttpRequestMethods,
+	uri: string,
+	qs: IDataObject = {},
+	body: IHttpRequestOptions['body'] = '',
+	option: Partial<IHttpRequestOptions> = {},
+): Promise<IN8nHttpFullResponse> {
+	const credentials = await this.getCredentials('jenkinsApi');
+	const options: IHttpRequestOptions = {
+		headers: {
+			Accept: 'application/json',
+		},
+		method,
+		auth: {
+			username: credentials.username as string,
+			password: credentials.apiKey as string,
+		},
+		url: `${tolerateTrailingSlash(credentials.baseUrl as string)}${uri}`,
+		json: true,
+		qs,
+		body,
+		returnFullResponse: true,
+	};
+	const mergedOptions = Object.assign({}, options, option) as IHttpRequestOptions;
+	try {
+		// eslint-disable-next-line @n8n/community-nodes/no-http-request-with-manual-auth -- JenkinsApi has no authenticate() method; manual basic auth required
+		return (await this.helpers.httpRequest(mergedOptions)) as IN8nHttpFullResponse;
+	} catch (error) {
+		throw new NodeApiError(this.getNode(), error as JsonObject);
+	}
+}
+
+/** Jenkins answers a trigger request with 201 and a Location header that points at the queue item of the created build, e.g. ".../queue/item/123/". Parse that so workflows can poll the queue item until the build starts. */
+export function buildTriggerResponse(fullResponse: IN8nHttpFullResponse): IDataObject {
+	const queueUrl = (fullResponse.headers?.location as string) ?? '';
+	const queueIdMatch = queueUrl.match(/\/queue\/item\/(\d+)\/?/);
+	return {
+		success: true,
+		queueUrl,
+		queueId: queueIdMatch ? parseInt(queueIdMatch[1], 10) : undefined,
+	};
 }
